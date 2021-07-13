@@ -1,0 +1,4 @@
+[debug] [root-test] Classpath dependencies List()
+[debug] [root-test] Dependencies from configurations List(root)
+[debug] Bloop wrote the configuration of project 'root-test' to '/home/wander/Desktop/usp/tcc/cqrs-event_sourcing-agenda/event-sourcing/.bloop/root-test.json'
+[success] Generated .bloop/root-test.json

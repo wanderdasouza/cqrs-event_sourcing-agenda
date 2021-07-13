@@ -1,0 +1,4 @@
+[0m[[0m[0mdebug[0m] [0m[0m[event-sourcing-build] Classpath dependencies List()[0m
+[0m[[0m[0mdebug[0m] [0m[0m[event-sourcing-build] Dependencies from configurations List()[0m
+[0m[[0m[0mdebug[0m] [0m[0mBloop wrote the configuration of project 'event-sourcing-build' to '/home/wander/Desktop/usp/tcc/cqrs-event_sourcing-agenda/event-sourcing/project/.bloop/event-sourcing-build.json'[0m
+[0m[[0m[32msuccess[0m] [0m[0mGenerated .bloop/event-sourcing-build.json[0m
