@@ -1,4 +1,0 @@
-[0m[[0m[31merror[0m] [0m[0m/home/wander/Desktop/usp/tcc/cqrs-event_sourcing-agenda/event-sourcing/src/main/scala/br/usp/eventsourcing/util/UserEventEnum.scala:13:1: illegal start of simple pattern[0m
-[0m[[0m[31merror[0m] [0m[0m}[0m
-[0m[[0m[31merror[0m] [0m[0m^[0m
-[0m[[0m[31merror[0m] [0m[0mone error found[0m
