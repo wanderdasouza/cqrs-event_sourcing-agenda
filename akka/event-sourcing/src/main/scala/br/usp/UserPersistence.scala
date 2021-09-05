@@ -3,15 +3,13 @@ package br.usp
 //#user-registry-actor
 
 
-import UserDomain._
-import akka.NotUsed
+import br.usp.domain.UserDomain._
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityContext, EntityTypeKey}
-import akka.contrib.persistence.mongodb.MongoReadJournal
-import akka.persistence.query.{EventEnvelope, PersistenceQuery}
-import akka.persistence.query.scaladsl.CurrentEventsByPersistenceIdQuery
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
+import br.usp.domain.User
+import br.usp.serialization.JsonSerializable
 
 object UserPersistence {
 
@@ -32,13 +30,12 @@ object UserPersistence {
 
   private def commandHandler(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
-      case GetUser(replyTo) =>
-        // Effect.reply(replyTo)(GetUserResponse(Option(User(state.name, state.tel))))
-      case CreateUser(user, replyTo) =>
+      case GetUser(id, replyTo) =>
+        Effect.reply(replyTo)(GetUserResponse(Option(User(state.name, state.tel))))
+      case CreateUser(id, user, replyTo) =>
         Effect.persist(UserCreated(user)).thenReply(replyTo)(newUserState => ActionPerformed(User(newUserState.name, newUserState.tel)))
-      case DeleteUser(user, replyTo) =>
-
-        Effect.persist(UserDeleted(user)).thenRun(_ => replyTo ! ActionPerformed(user))
+//      case DeleteUser(user, replyTo) =>
+//        Effect.persist(UserDeleted(user)).thenRun(_ => replyTo)
     }
   }
 
@@ -55,7 +52,7 @@ object UserPersistence {
     }
   }
 
-  def init(system: ActorSystem[_]): Unit = {
+  def initSharding(system: ActorSystem[_]): Unit = {
     val behaviorFactory: EntityContext[Command] => Behavior[Command] = {
       entityContext =>
         UserPersistence(entityContext.entityId)

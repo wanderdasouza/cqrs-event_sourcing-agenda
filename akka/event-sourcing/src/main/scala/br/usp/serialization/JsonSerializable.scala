@@ -1,3 +1,3 @@
-package br.usp.serialization trait JsonSerializable {
+package br.usp.serialization
 
-}
+trait JsonSerializable
