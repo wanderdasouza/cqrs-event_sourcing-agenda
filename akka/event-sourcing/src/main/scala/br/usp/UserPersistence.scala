@@ -1,8 +1,5 @@
 package br.usp
 
-//#user-registry-actor
-
-
 import br.usp.domain.UserDomain._
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityContext, EntityTypeKey}
@@ -16,7 +13,7 @@ object UserPersistence {
  final case class State(name: String, tel: String) extends JsonSerializable {
    def createUser(user: User) = State(user.name, user.tel)
     def updateName(newName: String) = copy(name = newName)
-    def updateTel(newTel: String) = copy(name = newTel)
+    def updateTel(newTel: String) = copy(tel = newTel)
    def removeUser = copy(null, null)
  }
 
@@ -30,12 +27,18 @@ object UserPersistence {
 
   private def commandHandler(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
-      case GetUser(id, replyTo) =>
+      case GetUser(replyTo) =>
         Effect.reply(replyTo)(GetUserResponse(Option(User(state.name, state.tel))))
-      case CreateUser(id, user, replyTo) =>
+      case CreateUser(user, replyTo) =>
         Effect.persist(UserCreated(user)).thenReply(replyTo)(newUserState => ActionPerformed(User(newUserState.name, newUserState.tel)))
-//      case DeleteUser(user, replyTo) =>
-//        Effect.persist(UserDeleted(user)).thenRun(_ => replyTo)
+      case UpdateUserName(newName, replyTo) =>
+        Effect.persist(UserNameUpdated(newName)).thenReply(replyTo)(newUserState =>
+          GetUserResponse(Option(User(newUserState.name, newUserState.tel)))
+        )
+      case UpdateUserTel(newTel, replyTo) =>
+        Effect.persist(UserTelUpdated(newTel)).thenReply(replyTo)(newUserState =>
+          GetUserResponse(Option(User(newUserState.name, newUserState.tel)))
+        )
     }
   }
 
@@ -72,5 +75,4 @@ object UserPersistence {
 
 
 }
-//#user-registry-actor
 

@@ -4,22 +4,23 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import akka.actor.typed.ActorSystem
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
+import akka.contrib.persistence.mongodb.MongoReadJournal
+import akka.persistence.query.PersistenceQuery
+import akka.persistence.query.scaladsl.CurrentPersistenceIdsQuery
+import akka.stream.scaladsl.Sink
 import akka.util.Timeout
-import br.usp.domain.User
+import br.usp.domain.{User, UserName, UserTel, Users}
 import br.usp.domain.UserDomain._
 import org.bson.types.ObjectId
-import org.slf4j.Logger
 
-import java.lang.System.Logger
+import scala.concurrent.duration.DurationInt
 
-//#import-json-formats
-//#user-routes-class
+
 class UserRoutes(implicit val system: ActorSystem[_]) {
 
-  //#user-routes-class
   import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
   import br.usp.serialization.JsonFormats._
   //#import-json-formats
@@ -29,38 +30,45 @@ class UserRoutes(implicit val system: ActorSystem[_]) {
   // If ask takes more time than this to complete the request is failed
   private implicit val timeout = Timeout.create(system.settings.config.getDuration("my-app.routes.ask-timeout"))
 
-
-//  def getUsers: Future[Users] = {
-//    //userRegistry.ask(GetUsers(system,_))
-//  }
+  def getUsers = {
+    val readJournal =
+      PersistenceQuery(system).readJournalFor[CurrentPersistenceIdsQuery](MongoReadJournal.Identifier)
+    readJournal
+      .currentPersistenceIds()
+      .map(id => Await.result(getUser(id.split("\\|").last), 4.second).maybeUser.get)
+      .runFold(Set.empty[User])((set, user) => set + user)
+  }
+  def updateUserName(userId: String, newName: String): Future[GetUserResponse] = {
+    val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
+    entityRef.ask(UpdateUserName(newName, _))
+  }
+  def updateUserTel(userId: String, newTel: String): Future[GetUserResponse] = {
+    val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
+    entityRef.ask(UpdateUserTel(newTel, _))
+  }
   def getUser(userId: String): Future[GetUserResponse] = {
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
-    entityRef.ask(GetUser(userId, _))
+    entityRef.ask(GetUser(_))
   }
   def createUser(user: User): Future[ActionPerformed] = {
     val id = new ObjectId().toString
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, id)
-    entityRef.ask(CreateUser(id, user, _))
+    entityRef.ask(CreateUser(user, _))
   }
-
   def deleteUser(userId: String): Future[ActionPerformed] = {
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
-    entityRef.ask(DeleteUser(userId, _))
+    entityRef.ask(DeleteUser( _))
   }
 
-  //#all-routes
-  //#users-get-post
-  //#users-get-delete
   val userRoutes: Route =
     pathPrefix("users") {
       concat(
-        //#users-get-delete
         pathEnd {
           concat(
             get {
-              //complete(getUsers())
-
-              complete((StatusCodes.OK))
+              onSuccess(getUsers) { users =>
+                complete(Users(users.toSeq))
+              }
             },
             post {
               entity(as[User]) { user =>
@@ -70,28 +78,37 @@ class UserRoutes(implicit val system: ActorSystem[_]) {
               }
             })
         },
-        //#users-get-delete
-        //#users-get-post
         path(Segment) { id =>
           concat(
             get {
-              //#retrieve-user-info
               rejectEmptyResponse {
                 onSuccess(getUser(id)) { response =>
                   complete(response.maybeUser)
                 }
               }
-              //#retrieve-user-info
+            },
+            patch {
+              rejectEmptyResponse {
+                concat(
+                  entity(as[UserTel]) { newEditRequest =>
+                    onSuccess(updateUserTel(id, newEditRequest.tel)) { response =>
+                      complete(response.maybeUser)
+                    }
+                  },
+                  entity(as[UserName]) { newEditRequest =>
+                    onSuccess(updateUserName(id, newEditRequest.name)) { response =>
+                      complete(response.maybeUser)
+                    }
+                  }
+                )
+              }
             },
             delete {
-              //#users-delete-logic
               onSuccess(deleteUser(id)) { performed =>
                 complete((StatusCodes.OK, performed))
               }
-              //#users-delete-logic
-            })
+            }
+          )
         })
-      //#users-get-delete
     }
-  //#all-routes
 }

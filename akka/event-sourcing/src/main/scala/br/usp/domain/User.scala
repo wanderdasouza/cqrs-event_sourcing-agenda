@@ -8,17 +8,18 @@ import scala.collection.immutable
 //#user-case-classes
 final case class User(name: String, tel: String)
 final case class Users(users: immutable.Seq[User])
-//#user-case-classes
+
+final case class UserName(name: String)
+final case class UserTel(tel: String)
 
 object UserDomain {
   // actor protocol
   sealed trait Command extends JsonSerializable
-  final case class GetUsers(system: ActorSystem[_], replyTo: ActorRef[Users]) extends Command
-  final case class CreateUser(id: String, user: User, replyTo: ActorRef[ActionPerformed]) extends Command
-  final case class GetUser(id: String, replyTo: ActorRef[GetUserResponse]) extends Command
-  final case class DeleteUser(id: String, replyTo: ActorRef[ActionPerformed]) extends Command
-  final case class UpdateUserName(name: String) extends Command
-  final case class UpdateUserTel(tel: String) extends Command
+  final case class CreateUser(user: User, replyTo: ActorRef[ActionPerformed]) extends Command
+  final case class GetUser(replyTo: ActorRef[GetUserResponse]) extends Command
+  final case class DeleteUser(replyTo: ActorRef[ActionPerformed]) extends Command
+  final case class UpdateUserName(name: String, replyTo: ActorRef[GetUserResponse]) extends Command
+  final case class UpdateUserTel(tel: String, replyTo: ActorRef[GetUserResponse]) extends Command
 
 
   sealed trait Event extends JsonSerializable
