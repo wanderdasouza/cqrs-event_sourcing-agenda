@@ -3,6 +3,7 @@ package br.usp
 import akka.actor.AddressFromURIString
 import com.typesafe.config.Config
 import akka.actor.typed.ActorSystem
+import akka.management.scaladsl.AkkaManagement
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConverters._
@@ -31,7 +32,8 @@ object Main {
         else 0 // let OS decide
 
       val config = configWithPort(port)
-      ActorSystem[Nothing](Guardian(httpPort), "UserApp", config)
+      val system = ActorSystem[Nothing](Guardian(httpPort), "UserApp", config)
+      AkkaManagement(system).start()
     }
   }
 
@@ -43,6 +45,3 @@ object Main {
 
 
 }
-
-    //#server-bootstrapping
-//#main-class

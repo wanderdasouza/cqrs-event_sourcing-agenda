@@ -10,7 +10,6 @@ import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.contrib.persistence.mongodb.MongoReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.persistence.query.scaladsl.CurrentPersistenceIdsQuery
-import akka.stream.scaladsl.Sink
 import akka.util.Timeout
 import br.usp.domain.{User, UserName, UserTel, Users}
 import br.usp.domain.UserDomain._
@@ -35,8 +34,8 @@ class UserRoutes(implicit val system: ActorSystem[_]) {
       PersistenceQuery(system).readJournalFor[CurrentPersistenceIdsQuery](MongoReadJournal.Identifier)
     readJournal
       .currentPersistenceIds()
-      .map(id => Await.result(getUser(id.split("\\|").last), 4.second).maybeUser.get)
-      .runFold(Set.empty[User])((set, user) => set + user)
+      .map(id => Await.result(getUser(id.split("\\|").last), 3.second).maybeUser.get)
+      .runFold(Seq.empty[User])((set, user) => set.+:(user))
   }
   def updateUserName(userId: String, newName: String): Future[GetUserResponse] = {
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
@@ -50,14 +49,14 @@ class UserRoutes(implicit val system: ActorSystem[_]) {
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
     entityRef.ask(GetUser(_))
   }
-  def createUser(user: User): Future[ActionPerformed] = {
+  def createUser(user: User): Future[String] = {
     val id = new ObjectId().toString
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, id)
     entityRef.ask(CreateUser(user, _))
   }
-  def deleteUser(userId: String): Future[ActionPerformed] = {
+  def deleteUser(userId: String): Future[String] = {
     val entityRef = sharding.entityRefFor(UserPersistence.EntityKey, userId)
-    entityRef.ask(DeleteUser( _))
+    entityRef.ask(DeleteUser(_))
   }
 
   val userRoutes: Route =
@@ -67,7 +66,7 @@ class UserRoutes(implicit val system: ActorSystem[_]) {
           concat(
             get {
               onSuccess(getUsers) { users =>
-                complete(Users(users.toSeq))
+                complete(StatusCodes.OK, Users(users.toSeq))
               }
             },
             post {

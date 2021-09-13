@@ -1,5 +1,6 @@
 package br.usp
 
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import br.usp.domain.UserDomain._
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityContext, EntityTypeKey}
@@ -10,34 +11,45 @@ import br.usp.serialization.JsonSerializable
 
 object UserPersistence {
 
- final case class State(name: String, tel: String) extends JsonSerializable {
-   def createUser(user: User) = State(user.name, user.tel)
+ final case class State(id: String, name: String, tel: String) extends JsonSerializable {
+   def createUser(user: User) = copy(name = user.name, tel = user.tel)
     def updateName(newName: String) = copy(name = newName)
     def updateTel(newTel: String) = copy(tel = newTel)
-   def removeUser = copy(null, null)
+   def removeUser = copy(name = "", tel = "")
  }
 
   object State {
-    val empty = State(null, null)
+    def empty(userId: String) = State(userId, null, null)
   }
 
   val EntityKey: EntityTypeKey[Command] =
     EntityTypeKey[Command]("User")
 
 
-  private def commandHandler(userId: String, state: State, command: Command): ReplyEffect[Event, State] = {
+  private def commandHandler(context: ActorContext[Command], state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
       case GetUser(replyTo) =>
-        Effect.reply(replyTo)(GetUserResponse(Option(User(state.name, state.tel))))
+        Effect
+          .reply(replyTo)(GetUserResponse(Option(User(state.name, state.tel))))
       case CreateUser(user, replyTo) =>
-        Effect.persist(UserCreated(user)).thenReply(replyTo)(newUserState => ActionPerformed(User(newUserState.name, newUserState.tel)))
+        Effect
+          .persist(UserCreated(user))
+          .thenReply(replyTo)(newUserState => newUserState.id)
       case UpdateUserName(newName, replyTo) =>
-        Effect.persist(UserNameUpdated(newName)).thenReply(replyTo)(newUserState =>
+        Effect
+          .persist(UserNameUpdated(newName))
+          .thenReply(replyTo)(newUserState =>
           GetUserResponse(Option(User(newUserState.name, newUserState.tel)))
         )
       case UpdateUserTel(newTel, replyTo) =>
-        Effect.persist(UserTelUpdated(newTel)).thenReply(replyTo)(newUserState =>
+        Effect
+          .persist(UserTelUpdated(newTel))
+          .thenReply(replyTo)(newUserState =>
           GetUserResponse(Option(User(newUserState.name, newUserState.tel)))
+        )
+      case DeleteUser(replyTo) =>
+        Effect.persist(UserDeleted).thenReply(replyTo)(newUserState =>
+          newUserState.id
         )
     }
   }
@@ -50,7 +62,7 @@ object UserPersistence {
         state.updateName(name)
       case UserTelUpdated(tel) =>
         state.updateTel(tel)
-      case UserDeleted(_) =>
+      case UserDeleted =>
         state.removeUser
     }
   }
@@ -63,13 +75,15 @@ object UserPersistence {
     ClusterSharding(system).init(Entity(EntityKey)(behaviorFactory))
   }
 
-  def apply(userId: String): Behavior[Command] = {
 
-    EventSourcedBehavior[Command, Event, State](
-      persistenceId = PersistenceId(EntityKey.name, userId),
-      emptyState = State.empty,
-      commandHandler = (state, command) => commandHandler(userId, state, command),
-      eventHandler = (state, event) => eventHandler(state, event))
+  def apply(userId: String): Behavior[Command] = {
+    Behaviors.setup { context =>
+      EventSourcedBehavior[Command, Event, State](
+        persistenceId = PersistenceId(EntityKey.name, userId),
+        emptyState = State.empty(userId),
+        commandHandler = (state, command) => commandHandler(context, state, command),
+        eventHandler = (state, event) => eventHandler(state, event))
+    }
 
   }
 
